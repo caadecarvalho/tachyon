@@ -68,6 +68,9 @@ public class FileInStream extends InputStream implements BoundedStream, Seekable
   private final FileSystemContext mContext;
   /** File information */
   private final FileInfo mFileInfo;
+  /** Constant error message for block ID not cached */
+  private static final String BLOCK_ID_NOT_CACHED = "The block with ID {}"
+      + " could not be cached into Tachyon storage. {}";
 
   /** If the stream is closed, this can only go from false to true */
   private boolean mClosed;
@@ -126,8 +129,7 @@ public class FileInStream extends InputStream implements BoundedStream, Seekable
       try {
         mCurrentCacheStream.write(data);
       } catch (IOException ioe) {
-        LOG.warn("The block with ID {} could not be cached into Tachyon. {}",
-            getCurrentBlockId(), ioe.getMessage());
+        LOG.warn(BLOCK_ID_NOT_CACHED, getCurrentBlockId(), ioe.getMessage());
         mShouldCacheCurrentBlock = false;
       }
     }
@@ -163,8 +165,7 @@ public class FileInStream extends InputStream implements BoundedStream, Seekable
         try {
           mCurrentCacheStream.write(b, currentOffset, bytesRead);
         } catch (IOException ioe) {
-          LOG.warn("Failed to write into Tachyon storage, the block with ID {} will not be in "
-              + "Tachyon storage. {}", getCurrentBlockId(), ioe.getMessage());
+          LOG.warn(BLOCK_ID_NOT_CACHED, getCurrentBlockId(), ioe.getMessage());
           mShouldCacheCurrentBlock = false;
         }
       }
@@ -239,14 +240,10 @@ public class FileInStream extends InputStream implements BoundedStream, Seekable
           mCurrentCacheStream =
               mContext.getTachyonBlockStore().getOutStream(currentBlockId, blockSize, address);
         } catch (IOException ioe) {
-          LOG.warn("Failed to get Tachyon stream, the block with ID {} will not be"
-              + " in Tachyon storage. {}", currentBlockId, ioe.getMessage());
+          LOG.warn(BLOCK_ID_NOT_CACHED, currentBlockId, ioe.getMessage());
           mShouldCacheCurrentBlock = false;
         } catch (TachyonException e) {
-          LOG.warn(
-              "Failed to get worker for writing the block with ID {}."
-                  + " The block will not be in Tachyon storage. {}",
-              currentBlockId, e.getMessage());
+          LOG.warn(BLOCK_ID_NOT_CACHED, currentBlockId, e.getMessage());
           throw new IOException(e);
         }
       }
@@ -316,14 +313,10 @@ public class FileInStream extends InputStream implements BoundedStream, Seekable
           mCurrentCacheStream =
               mContext.getTachyonBlockStore().getOutStream(currentBlockId, blockSize, address);
         } catch (IOException ioe) {
-          LOG.warn("Failed to write on Tachyon stream, the block with ID {} will not be"
-              + "in Tachyon storage. {}", getCurrentBlockId(), ioe.getMessage());
+          LOG.warn(BLOCK_ID_NOT_CACHED, getCurrentBlockId(), ioe.getMessage());
           mShouldCacheCurrentBlock = false;
         } catch (TachyonException e) {
-          LOG.warn(
-              "Failed to get worker for writing the block with ID {}."
-                  + " The block will not be in Tachyon storage. {}",
-              currentBlockId, e.getMessage());
+          LOG.warn(BLOCK_ID_NOT_CACHED, currentBlockId, e.getMessage());
           throw new IOException(e);
         }
       } else {
@@ -357,11 +350,11 @@ public class FileInStream extends InputStream implements BoundedStream, Seekable
       mShouldCacheCurrentBlock =
           !(mCurrentBlockInStream instanceof LocalBlockInStream) && mTachyonStorageType.isStore();
     } catch (IOException ioe) {
-      LOG.debug("Failed to get BlockInStream for block with ID {}, using UFS instead."
-          + " {}", blockId, ioe.getMessage());
+      LOG.debug("Failed to get BlockInStream for block with ID {}, using UFS instead. {}",
+          blockId, ioe.getMessage());
       if (!mFileInfo.isPersisted) {
         LOG.error("Could not obtain data for block with ID {} from Tachyon."
-            + " The block will not be persisted in the under file storage." , blockId);
+            + " The block will not be persisted in the under file storage.", blockId);
         throw ioe;
       }
       long blockStart = BlockId.getSequenceNumber(blockId) * mBlockSize;
